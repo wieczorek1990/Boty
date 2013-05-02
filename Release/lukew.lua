@@ -1,15 +1,35 @@
 --lukew.lua
 
+-- Bot names should be 'NAMEPREFIX%d' where %d in <1, N>
+TEAMSIZE = 3
+BUFFERSIZE = 2
+NAMEPREFIX = 'lukew'
+enemyPositions = {}
+initialized = false
+
+function getBotNumber(name)
+	return string.gsub(name, NAMEPREFIX, '')
+end
+
 function lukewwhatTo(agent, actorKnowledge, time)
-	io.write(actorKnowledge:getName() .. ': ')
+	botNumber = getBotNumber(actorKnowledge:getName())
+	io.write(string.format('%d:', botNumber))
 	position = actorKnowledge:getPosition()
-	showVector(position)
 	io.write('\n')
 end
 
 function lukewonStart(agent, actorKnowledge, time)
-	io.write(actorKnowledge:getName() .. ' (start): ')
-
+	botNumber = getBotNumber(actorKnowledge:getName())
+	io.write(string.format('%d (start):', botNumber))
+	if not initialized then
+		for i=1,TEAMSIZE do
+			enemyPositions[i] = {}
+			for j=1,BUFFERSIZE do
+				enemyPositions[i][j] = 0
+			end
+		end
+		initialized = true
+	end
 	io.write('\n')
 end
 
