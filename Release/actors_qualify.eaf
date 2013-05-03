@@ -1,7 +1,7 @@
-Lynx			ms				1	45	35	skeleton.bow.
 qualify1		sc:qualify.lua	2	150	250	man.staff.
 qualify2		sc:qualify.lua	2	430	35	man.staff.
 qualify3		sc:qualify.lua	2	460	55	man.staff.
-lukew1			sc:lukew.lua	2	390	385	skeleton.bow.
-lukew2			sc:lukew.lua	2	300	270	skeleton.bow.
-lukew3			sc:lukew.lua	2	30	305	skeleton.bow.
+lukew1			sc:lukew.lua	1	390	385	skeleton.bow.
+lukew2			sc:lukew.lua	1	300	270	skeleton.bow.
+lukew3			sc:lukew.lua	1	30	305	skeleton.bow.
+lukew4			ms				1	45	35	skeleton.bow.
