@@ -1,0 +1,5 @@
+qualify1		sc:qualify.lua	2	-10	-10	man.staff.
+lukew1			sc:lukew.lua	1	390	385	skeleton.bow.
+lukew2			sc:lukew.lua	1	300	270	skeleton.bow.
+lukew3			sc:lukew.lua	1	30	305	skeleton.bow.
+lukew4			ms				1	45	35	man.staff.
