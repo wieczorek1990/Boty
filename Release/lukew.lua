@@ -1,87 +1,118 @@
 --lukew.lua
--- Bot names should be 'NAMEPREFIX%d' where %d in <1, N>
+-- Bot names should be 'BOT_NAME_PREFIX%d' where %d in <1, N>
 
-Modes = { alone=0, rendezvous=1, group=2 }
+BOT_NAME_PREFIX = 'lukew'
+START_HEALTH = 0
+SAFE_LEN = 128
+weaponsShort = { Enumerations.Shotgun, Enumerations.RocketLuncher, Enumerations.Railgun, Enumerations.Chaingun }
+weaponsLong = { Enumerations.Railgun, Enumerations.RocketLuncher, Enumerations.Shotgun, Enumerations.Chaingun }
 
-TEAMSIZE = 3
-BUFFERSIZE = 2
-NAMEPREFIX = 'lukew'
-
-initialized = false
-alive = {}
-friendPositions = {}
-enemyPositions = {}
-botModes = {}
-
--- Prints vector nicely
 function showVector(vector)
     io.write(string.format('(%3d, %3d, %3d, %3d)\n', vector:value(0), vector:value(1), vector:value(2), vector:value(3)))
 end
 
--- Checks if vectors are equal
-function notEqualVector(vector1, vector2)
-	if vector1:value(0) ~= vector2:value(0) or
-		vector1:value(1) ~= vector2:value(1) or
-		vector1:value(2) ~= vector2:value(2) or
-		vector1:value(3) ~= vector2:value(3) then
-		return true
-	end
-	return false
-end
-
--- Returns bot number from actorKnowledge
 function getBotNumber(actorKnowledge)
-	number = string.gsub(actorKnowledge:getName(), NAMEPREFIX, '')
+	number = string.gsub(actorKnowledge:getName(), BOT_NAME_PREFIX, '')
 	return tonumber(number)
 end
 
--- Returns current leader bot number
-function getLeaderNumber(actorKnowledge, time, botNumber)
-	for i=1,TEAMSIZE do
-		if alive[i] then
-			return i
+function randVector(min, max)
+	return Vector4d(math.random(min, max), math.random(min, max), 0, 0)
+end
+
+function vectorEqual(vec1, vec2)
+	if vec1:value(0) ~= vec2:value(0)
+		or vec1:value(1) ~= vec2:value(1) then
+--		or vec1:value(2) ~= vec2:value(2)
+--		or vec1:value(3) ~= vec2:value(3) then
+		return false
+	end
+	return true
+end
+
+function getClosestActiveTrigger(nav, position)
+	closest = -1
+	if nav:getNumberOfTriggers() > 0 then
+		for current=0, nav:getNumberOfTriggers() - 1 do
+			trig = nav:getTrigger(current)
+			if trig:isActive() then
+				distance = trig:getPosition() - position
+				length = distance:length()
+				if closest ~= -1 then
+					if length < closestLength then
+						closest = current
+						closestLength = length
+					end
+				else
+					closest = current
+					closestLength = length
+				end
+			end
+		end
+	end
+	if closestLength < SAFE_LEN then
+		return closest
+	else
+		return -1
+	end
+end
+
+function getPerpendicularVector(vector)
+	return Vector4d(-vector:value(1), vector:value(0), 0, 0)
+end
+
+function circlePos(enemyPos, r, a)
+	x = enemyPos:value(0) + r * math.cos(math.rad(a))
+	y = enemyPos:value(1) + r * math.sin(math.rad(a))
+	return Vector4d(x, y, 0, 0)
+end
+
+function nextAngle()
+	return math.random(-180, 180)
+end
+
+function randomSign()
+	x = math.random(0, 1)
+	if x > 0.5 then
+		return 1
+	else
+		return -1
+	end
+end
+
+function chooseWeapon(agent, actorKnowledge, weapons)
+	for k,weapon in pairs(weapons) do
+		if (actorKnowledge:getWeaponType() == weapon and actorKnowledge:getAmmo(weapon) ~= 0) then
+			break
+		end
+		if (actorKnowledge:getWeaponType() ~= weapon and actorKnowledge:getAmmo(weapon) ~= 0) then
+			agent:selectWeapon(weapon);
+			break
 		end
 	end
 end
 
 function lukewwhatTo(agent, actorKnowledge, time)
-	local botNumber = getBotNumber(actorKnowledge)
-	local position = actorKnowledge:getPosition()
-	local leaderNumber = getLeaderNumber(actorKnowledge, time, botNumber)
-	local self = actorKnowledge:getSelf()
-	alive[botNumber] = notEqualVector(position, friendPositions[botNumber])
-	friendPositions[botNumber] = position
+	botNumber = getBotNumber(actorKnowledge)
+	position = actorKnowledge:getPosition()
+	nav = actorKnowledge:getNavigation()
 
---	if botModes[botNumber] == Mode.alone then
---	
---	elseif botModes[botNumber] == Mode.rendezvous then
---	
---	elseif botModes[botNumber] == Mode.group then
---		
---    else
---      error("invalid mode")
---	end
+
 
 	io.write(string.format('%d:\n', botNumber))
-	io.write(string.format('Leader = %d\n', leaderNumber));
+--	io.write('Position: ')
+--	showVector(position)
+--	io.write(string.format("weapon = %d\n", actorKnowledge:getWeaponType()))
+--	io.write(string.format('ammo = %d\n', actorKnowledge:getAmmo(actorKnowledge:getWeaponType())))
+--	for i=0,3 do
+--		io.write(string.format("%d -> %d\n", i, actorKnowledge:getAmmo(i)))
+--	end
 end
 
--- Initializes friendPositions, enemyPositions, botModes, leaders
 function lukewonStart(agent, actorKnowledge, time)
-	local botNumber = getBotNumber(actorKnowledge)
-
-	if not initialized then
-		for i=1,TEAMSIZE do
-			enemyPositions[i] = {}
-			for j=1,BUFFERSIZE do
-				enemyPositions[i][j] = 0
-			end
-		end
-		initialized = true
-	end
-	
-	botModes[botNumber] = Modes.alone
-	alive[botNumber] = true
-	friendPositions[botNumber] = actorKnowledge:getPosition()
+	botNumber = getBotNumber(actorKnowledge)
+	position = actorKnowledge:getPosition()
+	START_HEALTH = actorKnowledge:getHealth()
+	chooseWeapon(agent, actorKnowledge, weaponsShort)
 	io.write(string.format('%d (start):\n', botNumber))
 end
