@@ -2,20 +2,19 @@
 -- Bot names should be 'BOT_NAME_PREFIX%d' where %d in <1, N>
 
 BOT_NAME_PREFIX = 'lukew'
-SAFE_LEN = 128
-SMALL_ERROR_MARGIN_LEN = 8
-BIG_ERROR_MARGIN_LEN = 64
 WIDTH = 1024
 HEIGHT = 768
 
-BLOCKING_FIX_TIME = 8
 START_HEALTH = 0
+SAFE_LEN = 128
+SMALL_ERROR_MARGIN_LEN = 8
+BIG_ERROR_MARGIN_LEN = 64
+weaponsArea = { Enumerations.Shotgun, Enumerations.RocketLuncher }
 weaponsShort = { Enumerations.Shotgun, Enumerations.RocketLuncher, Enumerations.Railgun, Enumerations.Chaingun }
 weaponsLong = { Enumerations.Railgun, Enumerations.RocketLuncher, Enumerations.Shotgun, Enumerations.Chaingun }
 destination = {}
 lastPosition = {}
 walkingMode = {}
-blockingFix = {}
 enemyLastPosition = {}
 
 function showVector(vector)
@@ -170,19 +169,12 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	position = actorKnowledge:getPosition()
 	nav = actorKnowledge:getNavigation()
 	enemies = actorKnowledge:getSeenFoes()
+	enemiesCount = enemies:size()
 
 	-- Cofanie przy blokadzie
 	if vectorEqual(lastPosition[botNumber], position) then
-		dir = (actorKnowledge:getShortDestination() - position) * -1
-		agent:moveDirection(dir)
-		blockingFix[botNumber] = 1
-	end
-	if blockingFix[botNumber] >= 1 then
-		blockingFix[botNumber] = blockingFix[botNumber] + 1
-	end
-	if blockingFix[botNumber] == BLOCKING_FIX_TIME then
-		agent:moveTo(destination[botNumber])
-		blockingFix[botNumber] = 0
+		dest = Vector4d(agent:randomDouble()*WIDTH, agent:randomDouble()*HEIGHT, 0, 0)
+		agent:moveTo(dest)
 	end
 
 	-- Wybór broni
@@ -199,27 +191,6 @@ function lukewwhatTo(agent, actorKnowledge, time)
 		chooseWeapon(agent, actorKnowledge, weaponsLong)
 	end
 	
-	-- Strzelanie
-	enemiesCount = enemies:size()
-	if enemiesCount > 0 then
-		d = Vector4d(0, 0, 0, 0)
-		eLastPos = enemyLastPosition[enemy:getName()]
-		if eLastPos ~= nil then
-			diff = enemy:getPosition() - eLastPos
-			diffLen = diff:length()
-			if diffLen < SMALL_ERROR_MARGIN_LEN then
-				d = diff
-			end
-		end
-		io.write('vector: ')
-		showVector(d)
-		agent:shootAtPoint(enemy:getPosition() + (d * 2))
-		for i=0,enemiesCount-1 do
-			e = enemies:at(i)
-			enemyLastPosition[e:getName()] = e:getPosition()	
-		end
-	end
-
 	diff = destination[botNumber] - position
 	diffLen = diff:length()
 	if walkingMode[botNumber] == 0 then
@@ -259,8 +230,12 @@ function lukewwhatTo(agent, actorKnowledge, time)
 			walkingMode[botNumber] = 0
 		end
 	-- Przeciwnicy
---	elseif enemies:size() > 0 then
---		io.write('Enemies!\n')
+	elseif enemiesCount > 0 then
+		io.write('Enemies!\n')
+		dir = enemy:getPosition() - position
+		if dir:length() > SAFE_LEN then
+			agent:moveDirection(dir)
+		end
 	-- Chodzenie po mapie
 	else
 		if destReached then
@@ -271,14 +246,38 @@ function lukewwhatTo(agent, actorKnowledge, time)
 			walkingMode[botNumber] = 1
 		end
 	end
+	
+	-- Strzelanie
+	if enemiesCount > 0 then
+		d = Vector4d(0, 0, 0, 0)
+		eLastPos = enemyLastPosition[enemy:getName()]
+		if eLastPos ~= nil then
+			diff = enemy:getPosition() - eLastPos
+			diffLen = diff:length()
+			if diffLen < SMALL_ERROR_MARGIN_LEN then
+				d = diff
+			end
+		end
+		if actorKnowledge:getWeaponType() == Enumerations.Chaingun then
+			shotPos = enemy:getPosition() + (d * 5)
+		else
+			shotPos = enemy:getPosition() + (d * 2)
+		end
+
+		agent:shootAtPoint(shotPos)
+		for i=0,enemiesCount-1 do
+			e = enemies:at(i)
+			enemyLastPosition[e:getName()] = e:getPosition()
+		end
+	end
 
 	lastPosition[botNumber] = position
 
 	io.write(string.format('%d:\n', botNumber))
-	io.write('Position: ')
-	showVector(position)
-	io.write('Destination: ')
-	showVector(destination[botNumber])
+--	io.write('Position: ')
+--	showVector(position)
+--	io.write('Destination: ')
+--	showVector(destination[botNumber])
 --	io.write(string.format("weapon = %d\n", actorKnowledge:getWeaponType()))
 --	io.write(string.format('ammo = %d\n', actorKnowledge:getAmmo(actorKnowledge:getWeaponType())))
 --	for i=0,3 do
@@ -288,13 +287,13 @@ function lukewwhatTo(agent, actorKnowledge, time)
 end
 
 function lukewonStart(agent, actorKnowledge, time)
+ 	math.randomseed(os.time())
 	botNumber = getBotNumber(actorKnowledge)
 	position = actorKnowledge:getPosition()
 	START_HEALTH = actorKnowledge:getHealth()
 	chooseWeapon(agent, actorKnowledge, weaponsLong)
 	destination[botNumber] = position
-	lastPosition[botNumber] = position
+	lastPosition[botNumber] = Vector4d(-1, -1, -1, -1)
 	walkingMode[botNumber] = 0
-	blockingFix[botNumber] = 0
-	io.write(string.format('%d (start):\n', botNumber))
+--	io.write(string.format('%d (start):\n', botNumber))
 end
