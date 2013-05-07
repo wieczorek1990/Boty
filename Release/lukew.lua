@@ -8,7 +8,7 @@ BIG_ERROR_MARGIN_LEN = 64
 WIDTH = 1024
 HEIGHT = 768
 
-BLOCKING_FIX_TIME = 4
+BLOCKING_FIX_TIME = 8
 START_HEALTH = 0
 weaponsShort = { Enumerations.Shotgun, Enumerations.RocketLuncher, Enumerations.Railgun, Enumerations.Chaingun }
 weaponsLong = { Enumerations.Railgun, Enumerations.RocketLuncher, Enumerations.Shotgun, Enumerations.Chaingun }
@@ -16,6 +16,7 @@ destination = {}
 lastPosition = {}
 walkingMode = {}
 blockingFix = {}
+enemyLastPosition = {}
 
 function showVector(vector)
     io.write(string.format('(%3d, %3d, %3d, %3d)\n', vector:value(0), vector:value(1), vector:value(2), vector:value(3)))
@@ -67,6 +68,7 @@ function getClosestTrigger(nav, position, type)
 	end
 end
 
+
 function getClosestActiveTrigger(nav, position)
 	closest = nil
 	if nav:getNumberOfTriggers() > 0 then
@@ -87,7 +89,7 @@ function getClosestActiveTrigger(nav, position)
 			end
 		end
 	end
-	if closestLength < SAFE_LEN then
+	if closestLength < SAFE_LEN and closest ~= nil then
 		return nav:getTrigger(closest)
 	else
 		return nil
@@ -169,6 +171,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	nav = actorKnowledge:getNavigation()
 	enemies = actorKnowledge:getSeenFoes()
 
+	-- Cofanie przy blokadzie
 	if vectorEqual(lastPosition[botNumber], position) then
 		dir = (actorKnowledge:getShortDestination() - position) * -1
 		agent:moveDirection(dir)
@@ -180,13 +183,13 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	if blockingFix[botNumber] == BLOCKING_FIX_TIME then
 		agent:moveTo(destination[botNumber])
 		blockingFix[botNumber] = 0
-	end	
+	end
 
+	-- Wybór broni
 	enemy = getClosestEnemy(enemies, position)
 	if enemy ~= nil then
 		diff = enemy:getPosition() - position
 		diffLen = diff:length()
---		io.write(string.format('diffLen=%d\n', diffLen))
 		if diffLen < SAFE_LEN then
 			chooseWeapon(agent, actorKnowledge, weaponsShort)
 		else
@@ -196,30 +199,69 @@ function lukewwhatTo(agent, actorKnowledge, time)
 		chooseWeapon(agent, actorKnowledge, weaponsLong)
 	end
 	
+	-- Strzelanie
+	enemiesCount = enemies:size()
+	if enemiesCount > 0 then
+		d = Vector4d(0, 0, 0, 0)
+		eLastPos = enemyLastPosition[enemy:getName()]
+		if eLastPos ~= nil then
+			diff = enemy:getPosition() - eLastPos
+			diffLen = diff:length()
+			if diffLen < SMALL_ERROR_MARGIN_LEN then
+				d = diff
+			end
+		end
+		io.write('vector: ')
+		showVector(d)
+		agent:shootAtPoint(enemy:getPosition() + (d * 2))
+		for i=0,enemiesCount-1 do
+			e = enemies:at(i)
+			enemyLastPosition[e:getName()] = e:getPosition()	
+		end
+	end
+
 	diff = destination[botNumber] - position
 	diffLen = diff:length()
---	io.write(string.format('diffLen=%d\n', diffLen))
 	if walkingMode[botNumber] == 0 then
 		error = SMALL_ERROR_MARGIN_LEN
 	else
 		error = BIG_ERROR_MARGIN_LEN
 	end
 	destReached = diffLen < error
-	trigger = getClosestActiveTrigger(nav, position)
-	if lowHealth(actorKnowledge) then
-		trig = getClosestTrigger(nav, position, Enumerations.Health) --here
+	trigActive = getClosestActiveTrigger(nav, position)
+	trigWeapon = getClosestTrigger(nav, position, Trigger.Weapon)
+	trigHealth = getClosestTrigger(nav, position, Trigger.Health)
+	-- ¯ycie
+	if lowHealth(actorKnowledge) and trigHealth ~= nil then
 		io.write('Low health!\n')
-	elseif outOfAmmo(actorKnowledge) then
-		io.write('Out of ammo!\n')
-		trig = getClosestTrigger(nav, position, Enumerations.Weapon)
-	elseif trigger ~= nil then
-		io.write('Trigger close.\n')
 		if destReached then
-			dest = trigger:getPosition()
+			dest = trigHealth:getPosition()
 			destination[botNumber] = dest
 			agent:moveTo(dest)
 			walkingMode[botNumber] = 0
 		end
+	-- Amunicja
+	elseif outOfAmmo(actorKnowledge) and trigWeapon ~= nil then
+		io.write('Out of ammo!\n')
+		if destReached then
+			dest = trigWeapon:getPosition()
+			destination[botNumber] = dest
+			agent:moveTo(dest)
+			walkingMode[botNumber] = 0
+		end
+	-- Bliski trigger
+	elseif trigActive ~= nil then
+		io.write('Trigger close.\n')
+		if destReached then
+			dest = trigActive:getPosition()
+			destination[botNumber] = dest
+			agent:moveTo(dest)
+			walkingMode[botNumber] = 0
+		end
+	-- Przeciwnicy
+--	elseif enemies:size() > 0 then
+--		io.write('Enemies!\n')
+	-- Chodzenie po mapie
 	else
 		if destReached then
 			trig = nav:getTrigger(math.random(0, nav:getNumberOfTriggers() - 1)) --optimist
@@ -242,6 +284,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 --	for i=0,3 do
 --		io.write(string.format("%d -> %d\n", i, actorKnowledge:getAmmo(i)))
 --	end
+--	io.write(string.format('diffLen=%d\n', diffLen))
 end
 
 function lukewonStart(agent, actorKnowledge, time)
