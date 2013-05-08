@@ -1,17 +1,22 @@
 --lukew.lua
 -- Bot names should be 'BOT_NAME_PREFIX%d' where %d in <1, N>
 
+-- Setup these before qualifications
 BOT_NAME_PREFIX = 'lukew'
 WIDTH = 1024
 HEIGHT = 768
-
+-- Config
 START_HEALTH = 0
-SAFE_LEN = 128
+SAFE_LEN = 150
+WEAPON_CHANGE_LEN = 100
+ENEMIES_2_LEN = 75
+ENEMIES_3_LEN = 100
 SMALL_ERROR_MARGIN_LEN = 8
 BIG_ERROR_MARGIN_LEN = 64
 weaponsArea = { Enumerations.Shotgun, Enumerations.RocketLuncher }
 weaponsShort = { Enumerations.Shotgun, Enumerations.RocketLuncher, Enumerations.Railgun, Enumerations.Chaingun }
 weaponsLong = { Enumerations.Railgun, Enumerations.RocketLuncher, Enumerations.Shotgun, Enumerations.Chaingun }
+-- Runtime
 destination = {}
 lastPosition = {}
 walkingMode = {}
@@ -182,13 +187,14 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	if enemy ~= nil then
 		diff = enemy:getPosition() - position
 		diffLen = diff:length()
-		if diffLen < SAFE_LEN then
+--		io.write(string.format('diffLen=%d\n', diffLen))
+		if diffLen < WEAPON_CHANGE_LEN then
 			chooseWeapon(agent, actorKnowledge, weaponsShort)
 		else
 			chooseWeapon(agent, actorKnowledge, weaponsLong)
 		end
 	else
-		chooseWeapon(agent, actorKnowledge, weaponsLong)
+		chooseWeapon(agent, actorKnowledge, weaponsShort)
 	end
 	
 	diff = destination[botNumber] - position
@@ -204,7 +210,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	trigHealth = getClosestTrigger(nav, position, Trigger.Health)
 	-- ¯ycie
 	if lowHealth(actorKnowledge) and trigHealth ~= nil then
-		io.write('Low health!\n')
+--		io.write('Low health!\n')
 		if destReached then
 			dest = trigHealth:getPosition()
 			destination[botNumber] = dest
@@ -213,7 +219,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 		end
 	-- Amunicja
 	elseif outOfAmmo(actorKnowledge) and trigWeapon ~= nil then
-		io.write('Out of ammo!\n')
+--		io.write('Out of ammo!\n')
 		if destReached then
 			dest = trigWeapon:getPosition()
 			destination[botNumber] = dest
@@ -222,7 +228,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 		end
 	-- Bliski trigger
 	elseif trigActive ~= nil then
-		io.write('Trigger close.\n')
+--		io.write('Trigger close.\n')
 		if destReached then
 			dest = trigActive:getPosition()
 			destination[botNumber] = dest
@@ -231,7 +237,7 @@ function lukewwhatTo(agent, actorKnowledge, time)
 		end
 	-- Przeciwnicy
 	elseif enemiesCount > 0 then
-		io.write('Enemies!\n')
+--		io.write('Enemies!\n')
 		dir = enemy:getPosition() - position
 		if dir:length() > SAFE_LEN then
 			agent:moveDirection(dir)
@@ -239,8 +245,11 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	-- Chodzenie po mapie
 	else
 		if destReached then
-			trig = nav:getTrigger(math.random(0, nav:getNumberOfTriggers() - 1)) --optimist
-			dest = trig:getPosition()
+			lastDest = destination[botNumber]
+			repeat
+				trig = nav:getTrigger(math.random(0, nav:getNumberOfTriggers() - 1)) --optimist
+				dest = trig:getPosition()
+			until not vectorEqual(lastDest, dest)
 			destination[botNumber] = dest
 			agent:moveTo(dest)
 			walkingMode[botNumber] = 1
@@ -249,31 +258,60 @@ function lukewwhatTo(agent, actorKnowledge, time)
 	
 	-- Strzelanie
 	if enemiesCount > 0 then
-		d = Vector4d(0, 0, 0, 0)
-		eLastPos = enemyLastPosition[enemy:getName()]
-		if eLastPos ~= nil then
-			diff = enemy:getPosition() - eLastPos
-			diffLen = diff:length()
-			if diffLen < SMALL_ERROR_MARGIN_LEN then
-				d = diff
+		denseShooting = false
+		if enemiesCount > 1 then
+			e0 = enemies:at(0):getPosition()
+			e1 = enemies:at(1):getPosition()
+			if enemiesCount == 2 then
+--				io.write('2 enemies!')
+				c = (e0 + e1) / 2
+				v0 = c - e0
+				v1 = c - e1
+				sumLen = v0:length() + v1:length()
+				if sumLen < ENEMIES_2_LEN then
+					shotPos = c
+					denseShooting = true
+				end
+			else
+--				io.write('3 enemies!')
+				e2 = enemies:at(2):getPosition()
+				c = (e0 + e1 + e2) / 3
+				v0 = c - e0
+				v1 = c - e1
+				v2 = c - e2
+				sumLen = v0:length() + v1:length() + v2:length()
+				if sumLen < ENEMIES_3_LEN then
+					shotPos = c
+					denseShooting = true
+				end
+			end
+--			io.write(string.format('sumLen=%d\n', sumLen))
+		end
+		if not denseShooting then
+			d = Vector4d(0, 0, 0, 0)
+			eLastPos = enemyLastPosition[enemy:getName()]
+			if eLastPos ~= nil then
+				diff = enemy:getPosition() - eLastPos
+				diffLen = diff:length()
+				if diffLen < SMALL_ERROR_MARGIN_LEN then
+					d = diff
+				end
+			end
+			if actorKnowledge:getWeaponType() == Enumerations.Chaingun then
+				shotPos = enemy:getPosition() + (d * 5)
+			else 
+				shotPos = enemy:getPosition() + (d * 2)
 			end
 		end
-		if actorKnowledge:getWeaponType() == Enumerations.Chaingun then
-			shotPos = enemy:getPosition() + (d * 5)
-		else
-			shotPos = enemy:getPosition() + (d * 2)
-		end
-
 		agent:shootAtPoint(shotPos)
-		for i=0,enemiesCount-1 do
-			e = enemies:at(i)
-			enemyLastPosition[e:getName()] = e:getPosition()
-		end
 	end
-
+	for i=0,enemiesCount-1 do
+		e = enemies:at(i)
+		enemyLastPosition[e:getName()] = e:getPosition()
+	end
 	lastPosition[botNumber] = position
 
-	io.write(string.format('%d:\n', botNumber))
+--	io.write(string.format('%d:\n', botNumber))
 --	io.write('Position: ')
 --	showVector(position)
 --	io.write('Destination: ')
@@ -291,7 +329,7 @@ function lukewonStart(agent, actorKnowledge, time)
 	botNumber = getBotNumber(actorKnowledge)
 	position = actorKnowledge:getPosition()
 	START_HEALTH = actorKnowledge:getHealth()
-	chooseWeapon(agent, actorKnowledge, weaponsLong)
+	chooseWeapon(agent, actorKnowledge, weaponsShort)
 	destination[botNumber] = position
 	lastPosition[botNumber] = Vector4d(-1, -1, -1, -1)
 	walkingMode[botNumber] = 0
