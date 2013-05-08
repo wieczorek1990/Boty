@@ -13,7 +13,6 @@ ENEMIES_2_LEN = 75
 ENEMIES_3_LEN = 100
 SMALL_ERROR_MARGIN_LEN = 8
 BIG_ERROR_MARGIN_LEN = 64
-weaponsArea = { Enumerations.Shotgun, Enumerations.RocketLuncher }
 weaponsShort = { Enumerations.Shotgun, Enumerations.RocketLuncher, Enumerations.Railgun, Enumerations.Chaingun }
 weaponsLong = { Enumerations.Railgun, Enumerations.RocketLuncher, Enumerations.Shotgun, Enumerations.Chaingun }
 -- Runtime
